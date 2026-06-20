@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ste-Foy Open">
+<meta name="theme-color" content="#0FA3B1">
+<title>2100 chemin Ste-Foy Open 🏆</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --pacific:#0FA3B1; --honeydew:#D9E5D6; --vanilla:#EDDEA4;
+    --tangerine:#F7A072; --sandy:#FF9B42;
+    --txt:#234; --muted:#7a8a86;
+    --p1:#0FA3B1; --p2:#F7732E; --accent:#0FA3B1; --good:#0FA3B1;
+    --shadow:0 6px 20px rgba(31,90,90,.15);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:linear-gradient(165deg,var(--honeydew),var(--vanilla));
+    background-attachment:fixed;
+    color:var(--txt);min-height:100vh;
+    padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 60px);
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:16px}
+  h1{font-size:21px;text-align:center;margin:8px 0 2px;font-weight:800;letter-spacing:.3px;color:#0a6e78;line-height:1.25}
+  .sub{text-align:center;color:var(--muted);font-size:12px;margin-bottom:16px}
+  #status{font-weight:700}
+
+  /* SCOREBOARD */
+  .board{display:flex;gap:12px;margin-bottom:18px}
+  .player{flex:1;background:#fff;border-radius:20px;padding:16px 12px;text-align:center;
+    box-shadow:var(--shadow);position:relative;overflow:hidden;border:2px solid transparent;transition:.2s}
+  .player.active{border-color:var(--accent)}
+  .player.lead::after{content:"👑";position:absolute;top:8px;right:10px;font-size:18px}
+  .pname{font-weight:800;font-size:15px;margin-bottom:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+  .p1 .pname{color:var(--p1)} .p2 .pname{color:var(--p2)}
+  .pts{font-size:34px;font-weight:800;line-height:1;color:#1a3a3a}
+  .pts small{font-size:13px;font-weight:600;color:var(--muted)}
+  .meta{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
+  .meta b{color:var(--txt)}
+  .streak{color:#e07b1f;font-weight:700}
+
+  /* WHO TOGGLE */
+  .who{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;font-size:13px;color:var(--muted)}
+  .who .opt{padding:7px 16px;border-radius:999px;background:#fff;cursor:pointer;font-weight:700;transition:.15s;box-shadow:var(--shadow);color:var(--muted)}
+  .who .opt.sel.s1{background:var(--p1);color:#fff}
+  .who .opt.sel.s2{background:var(--p2);color:#fff}
+
+  /* TABS */
+  .tabs{display:flex;gap:6px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:10px 4px;border-radius:14px;background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--muted);transition:.15s;box-shadow:var(--shadow)}
+  .tab.sel{background:var(--accent);color:#fff}
+
+  /* ACTIVITY GRID */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+  .act{background:#fff;border-radius:16px;padding:14px 10px;text-align:center;cursor:pointer;
+    box-shadow:var(--shadow);transition:transform .08s, background .15s}
+  .act:active{transform:scale(.94);background:#fff7ec}
+  .act .emo{font-size:26px}
+  .act .lbl{font-size:12.5px;font-weight:600;margin-top:5px}
+  .act .pp{font-size:11px;color:var(--good);font-weight:800;margin-top:3px}
+
+  /* SECTION TITLES */
+  .sec-title{font-size:14px;font-weight:700;margin:6px 4px 10px;display:flex;justify-content:space-between;align-items:center}
+  .sec-title span{color:var(--muted);font-weight:600;font-size:12px;cursor:pointer}
+  .sec-title.clickable{cursor:pointer;margin-top:22px}
+  .sec-title .arrow{transition:transform .2s;display:inline-block}
+  .sec-title .arrow.open{transform:rotate(90deg)}
+
+  /* HISTORY */
+  .hist{display:flex;flex-direction:column;gap:8px}
+  .row{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:10px 12px;box-shadow:var(--shadow)}
+  .row .e{font-size:20px}
+  .row .info{flex:1;min-width:0}
+  .row .info .t{font-size:13px;font-weight:600}
+  .row .info .d{font-size:11px;color:var(--muted)}
+  .row .who-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .row .pts-b{font-size:13px;font-weight:800;color:var(--good)}
+  .row .del{color:#c3ccc9;font-size:18px;padding:2px 6px;cursor:pointer}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:24px}
+
+  /* TABLE */
+  .qtable{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+  .qtable th,.qtable td{padding:10px 10px;text-align:center;font-size:13px;border-bottom:1px solid #eef1f0}
+  .qtable th{background:var(--pacific);color:#fff;font-size:12px;font-weight:700}
+  .qtable th.h2{background:var(--p2)}
+  .qtable td.ta{text-align:left;font-weight:600}
+  .qtable td.ta .e{font-size:16px;margin-right:4px}
+  .qtable td.c{color:#9aa;font-weight:600}
+  .qtable td.win1{color:var(--p1);font-weight:800}
+  .qtable td.win2{color:var(--p2);font-weight:800}
+  .qtable tfoot td{font-weight:800;background:#f1f8f7}
+
+  /* TOAST */
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);
+    background:var(--pacific);color:#fff;padding:11px 20px;border-radius:999px;font-weight:700;font-size:14px;
+    box-shadow:0 8px 24px rgba(15,163,177,.4);transition:transform .3s;z-index:50}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+
+  /* GATE (code secret) */
+  #gate{position:fixed;inset:0;background:linear-gradient(165deg,var(--honeydew),var(--vanilla));
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;padding:24px;text-align:center}
+  #gate.hidden{display:none}
+  #gate .logo{font-size:46px}
+  #gate h2{color:#0a6e78;margin:0;font-size:20px}
+  #gate p{color:var(--muted);font-size:13px;margin:0}
+  #gate input{font-size:22px;padding:12px 16px;border-radius:14px;border:2px solid #fff;text-align:center;width:210px;letter-spacing:6px;box-shadow:var(--shadow);outline:none}
+  #gate input:focus{border-color:var(--pacific)}
+  #gate button{background:var(--pacific);color:#fff;border:none;padding:12px 30px;border-radius:999px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:var(--shadow)}
+  #gerr{color:#d4452f;font-size:13px;height:16px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="logo">🏆</div>
+  <h2>2100 chemin Ste-Foy Open</h2>
+  <p>Entrez le code secret</p>
+  <input id="code" type="tel" inputmode="numeric" maxlength="12" placeholder="••••">
+  <div id="gerr"></div>
+  <button onclick="tryUnlock()">Entrer</button>
+</div>
+
+<div class="wrap">
+  <h1>🏆 2100 chemin Ste-Foy Open</h1>
+  <div class="sub">Notre tableau de bord à deux · <span id="status">connexion…</span></div>
+
+  <div class="board" id="board"></div>
+
+  <div class="who" id="whoBar">Qui enregistre ?
+    <div class="opt s1" data-p="1" onclick="setWho(1)"></div>
+    <div class="opt s2" data-p="2" onclick="setWho(2)"></div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="grid" id="grid"></div>
+
+  <div class="sec-title">Activité récente <span onclick="clearAll()">tout effacer</span></div>
+  <div class="hist" id="hist"></div>
+
+  <div class="sec-title clickable" onclick="toggleTable()">
+    📊 Tableau — Qui fait quoi
+    <span class="arrow" id="tblArrow">▸</span>
+  </div>
+  <div id="qtableWrap"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ========== CONFIG SUPABASE ========== */
+const SUPA_URL = "https://ilhyoaqduxxrrxkptzze.supabase.co";
+const SUPA_KEY = "sb_publishable_DzwZcDsbqC4gTn7lMqOdTg_Gh0fzeKU";
+const SECRET   = "21004";
+const db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
+/* ========== DONNÉES ========== */
+const CATS = {
+  menage:{label:"🏠 Ménage", acts:[
+    {e:"🍳",l:"Cuisiner",p:30},{e:"🍽️",l:"Vaisselle",p:15},
+    {e:"🧺",l:"Lavage",p:45},{e:"🧹",l:"Balais",p:10},
+    {e:"🧽",l:"Moppe",p:35},{e:"🚽",l:"Toilette/Évier",p:25},
+    {e:"🛁",l:"Bain",p:60},{e:"🗑️",l:"Poubelles/Récup.",p:20},
+    {e:"🧊",l:"Frigo",p:60},
+  ]},
+  sport:{label:"💪 Sport", acts:[
+    {e:"🚶",l:"Marche",p:10},{e:"🚴",l:"Vélo",p:30},
+    {e:"🏋️",l:"Exercice",p:45},{e:"🏸",l:"Sport",p:25},
+  ]},
+  sorties:{label:"💕 Sorties", acts:[
+    {e:"🍷",l:"Resto",p:35},{e:"🎬",l:"Cinéma",p:20},
+    {e:"🎲",l:"Jeux de société",p:10},{e:"🏛️",l:"Visites",p:60},
+    {e:"🚗",l:"Roadtrip",p:20},{e:"🎁",l:"Activité surprise",p:75},
+  ]},
+};
+
+/* ========== ÉTAT (préférences locales) ========== */
+let state = JSON.parse(localStorage.getItem("nd_state") || "null") || {
+  names:{1:"William",2:"Paola"}, who:1, tab:"menage", showTable:false
+};
+if(state.names[2]==="Ma copine") state.names[2]="Paola";
+if(!(state.tab in CATS)) state.tab="menage";
+if(state.showTable===undefined) state.showTable=false;
+function save(){ localStorage.setItem("nd_state", JSON.stringify({names:state.names,who:state.who,tab:state.tab,showTable:state.showTable})); }
+
+// Le journal vient de Supabase ; cache local pour l'affichage hors-ligne
+let log = JSON.parse(localStorage.getItem("nd_log_cache") || "[]");
+function cacheLog(){ localStorage.setItem("nd_log_cache", JSON.stringify(log)); }
+
+/* ========== CONVERSIONS ========== */
+function rowToEntry(r){return {id:r.id,p:r.player,cat:r.cat,emo:r.emoji,label:r.label,pts:Number(r.pts),ts:Number(r.ts)};}
+function upsertLocal(e){ log=log.filter(x=>x.id!==e.id); log.push(e); log.sort((a,b)=>a.ts-b.ts); cacheLog(); }
+function removeLocal(id){ log=log.filter(x=>x.id!==id); cacheLog(); }
+
+/* ========== CALCULS ========== */
+function startOfWeek(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setHours(0,0,0,0);x.setDate(x.getDate()-day);return x.getTime();}
+function totals(p){return log.filter(e=>e.p==p).reduce((s,e)=>s+e.pts,0);}
+function weekTotal(p){const w=startOfWeek(Date.now());return log.filter(e=>e.p==p&&e.ts>=w).reduce((s,e)=>s+e.pts,0);}
+function streak(p){
+  const days=new Set(log.filter(e=>e.p==p).map(e=>new Date(e.ts).toDateString()));
+  let s=0;let d=new Date();d.setHours(0,0,0,0);
+  if(!days.has(d.toDateString())){d.setDate(d.getDate()-1); if(!days.has(d.toDateString()))return 0;}
+  while(days.has(d.toDateString())){s++;d.setDate(d.getDate()-1);}
+  return s;
+}
+
+/* ========== RENDU ========== */
+function render(){
+  const t1=totals(1),t2=totals(2);
+  document.getElementById("board").innerHTML=[1,2].map(p=>{
+    const tot=p==1?t1:t2, lead=(t1!=t2)&&((p==1&&t1>t2)||(p==2&&t2>t1));
+    const st=streak(p);
+    return `<div class="player p${p} ${state.who==p?'active':''} ${lead?'lead':''}">
+      <div class="pname" onclick="rename(${p})">${state.names[p]} ✏️</div>
+      <div class="pts">${tot}<small> pts</small></div>
+      <div class="meta">Cette semaine: <b>${weekTotal(p)}</b><br>
+      <span class="streak">🔥 série ${st} jour${st>1?'s':''}</span></div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".who .opt").forEach(o=>{
+    const p=o.dataset.p; o.textContent=state.names[p];
+    o.classList.toggle("sel", state.who==p);
+  });
+
+  document.getElementById("tabs").innerHTML=Object.entries(CATS).map(([k,c])=>
+    `<div class="tab ${state.tab==k?'sel':''}" onclick="setTab('${k}')">${c.label}</div>`).join("");
+
+  document.getElementById("grid").innerHTML=CATS[state.tab].acts.map((a,i)=>
+    `<div class="act" onclick="add('${state.tab}',${i})">
+      <div class="emo">${a.e}</div><div class="lbl">${a.l}</div><div class="pp">+${a.p}</div>
+    </div>`).join("");
+
+  const h=document.getElementById("hist");
+  if(!log.length){h.innerHTML='<div class="empty">Aucune activité encore. Touche un bouton ci-dessus ! 👆</div>';}
+  else{
+    h.innerHTML=log.slice().reverse().slice(0,30).map(e=>{
+      const col=e.p==1?'var(--p1)':'var(--p2)';
+      return `<div class="row">
+        <span class="who-dot" style="background:${col}"></span>
+        <span class="e">${e.emo}</span>
+        <div class="info"><div class="t">${e.label}</div>
+        <div class="d">${state.names[e.p]} · ${fmt(e.ts)}</div></div>
+        <span class="pts-b">+${e.pts}</span>
+        <span class="del" onclick="del('${e.id}')">×</span>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("tblArrow").classList.toggle("open", state.showTable);
+  document.getElementById("qtableWrap").innerHTML = state.showTable ? renderTable() : "";
+}
+
+function renderTable(){
+  const all=[];
+  for(const k in CATS){ CATS[k].acts.forEach(a=>all.push(a)); }
+  const rows=all.map(a=>{
+    const c1=log.filter(e=>e.label===a.l&&e.p==1).length;
+    const c2=log.filter(e=>e.label===a.l&&e.p==2).length;
+    const cl1=c1>c2?'win1':(c1?'':'c'), cl2=c2>c1?'win2':(c2?'':'c');
+    return `<tr><td class="ta"><span class="e">${a.e}</span>${a.l}</td>
+      <td class="${cl1}">${c1||'–'}</td><td class="${cl2}">${c2||'–'}</td></tr>`;
+  }).join("");
+  const T1=log.filter(e=>e.p==1).length, T2=log.filter(e=>e.p==2).length;
+  return `<table class="qtable">
+    <thead><tr><th style="text-align:left">Activité</th><th>${state.names[1]}</th><th class="h2">${state.names[2]}</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td class="ta">Total</td><td>${T1}</td><td>${T2}</td></tr></tfoot>
+  </table>`;
+}
+
+function fmt(ts){
+  const d=new Date(ts), now=new Date();
+  const sameDay=d.toDateString()===now.toDateString();
+  const y=new Date(now); y.setDate(y.getDate()-1);
+  const time=d.toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  if(sameDay)return "Aujourd'hui "+time;
+  if(d.toDateString()===y.toDateString())return "Hier "+time;
+  return d.toLocaleDateString('fr-CA',{day:'numeric',month:'short'})+" "+time;
+}
+function setStatus(t){ const s=document.getElementById("status"); if(s) s.textContent=t; }
+
+/* ========== ACTIONS (Supabase) ========== */
+async function add(cat,i){
+  const a=CATS[cat].acts[i];
+  const row={ id:Date.now()+"_"+Math.random().toString(36).slice(2,6),
+    player:state.who, cat, emoji:a.e, label:a.l, pts:a.p, ts:Date.now() };
+  upsertLocal(rowToEntry(row)); render(); toast(`+${a.p} pts pour ${state.names[state.who]} ! ${a.e}`);
+  const {error}=await db.from('activities').insert(row);
+  if(error){ console.error(error); toast("⚠️ Non sauvegardé (hors ligne)"); }
+}
+async function del(id){
+  removeLocal(id); render();
+  const {error}=await db.from('activities').delete().eq('id',id);
+  if(error){ console.error(error); toast("⚠️ Suppression non synchronisée"); }
+}
+async function clearAll(){
+  if(!confirm("Effacer tout l'historique et les points (pour vous deux) ?")) return;
+  const ids=log.map(e=>e.id); log=[]; cacheLog(); render();
+  if(ids.length){ const {error}=await db.from('activities').delete().in('id',ids); if(error)console.error(error); }
+}
+function setWho(p){state.who=p;save();render();}
+function setTab(k){state.tab=k;save();render();}
+function toggleTable(){state.showTable=!state.showTable;save();render();}
+function rename(p){const n=prompt("Nom du joueur (local à cet appareil) :",state.names[p]);if(n&&n.trim()){state.names[p]=n.trim();save();render();}}
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove("show"),1800);}
+
+/* ========== CHARGEMENT + TEMPS RÉEL ========== */
+async function loadAll(){
+  const {data,error}=await db.from('activities').select('*').order('ts',{ascending:true});
+  if(error){ console.error(error); setStatus("🔴 hors ligne (données locales)"); return; }
+  log=data.map(rowToEntry); cacheLog(); render();
+}
+function subscribeRealtime(){
+  db.channel('activities-rt')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'activities'},
+      p=>{ upsertLocal(rowToEntry(p.new)); render(); })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'activities'},
+      p=>{ if(p.old&&p.old.id){ removeLocal(p.old.id); render(); } })
+    .subscribe(st=>{ if(st==='SUBSCRIBED') setStatus("🟢 synchronisé en temps réel"); });
+}
+
+/* ========== DÉMARRAGE ========== */
+function startApp(){ render(); loadAll(); subscribeRealtime(); }
+function tryUnlock(){
+  const v=document.getElementById('code').value.trim();
+  if(v===SECRET){ localStorage.setItem('nd_auth',SECRET); document.getElementById('gate').classList.add('hidden'); startApp(); }
+  else { document.getElementById('gerr').textContent='Code incorrect'; }
+}
+document.getElementById('code').addEventListener('keydown',e=>{ if(e.key==='Enter') tryUnlock(); });
+
+if(localStorage.getItem('nd_auth')===SECRET){
+  document.getElementById('gate').classList.add('hidden'); startApp();
+} else {
+  render(); // affiche l'arrière-plan derrière la porte
+}
+</script>
+</body>
+</html>
