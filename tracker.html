@@ -45,6 +45,11 @@
   .meta b{color:var(--txt)}
   .streak{color:#e07b1f;font-weight:700}
 
+  /* PERIOD TOGGLE */
+  .period{display:flex;gap:6px;margin-bottom:12px}
+  .period .popt{flex:1;text-align:center;padding:8px 4px;border-radius:999px;background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--muted);box-shadow:var(--shadow);transition:.15s}
+  .period .popt.sel{background:var(--accent);color:#fff}
+
   /* WHO TOGGLE */
   .who{display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;font-size:13px;color:var(--muted)}
   .who .opt{padding:7px 16px;border-radius:999px;background:#fff;cursor:pointer;font-weight:700;transition:.15s;box-shadow:var(--shadow);color:var(--muted)}
@@ -130,6 +135,7 @@
   <h1>🏆 2100 chemin Ste-Foy Open</h1>
   <div class="sub">Notre tableau de bord à deux · <span id="status">connexion…</span></div>
 
+  <div class="period" id="periodBar"></div>
   <div class="board" id="board"></div>
 
   <div class="who" id="whoBar">Qui enregistre ?
@@ -148,6 +154,12 @@
     <span class="arrow" id="tblArrow">▸</span>
   </div>
   <div id="qtableWrap"></div>
+
+  <div class="sec-title clickable" onclick="toggleWeeks()">
+    🏆 Palmarès hebdo
+    <span class="arrow" id="wkArrow">▸</span>
+  </div>
+  <div id="weeksWrap"></div>
 </div>
 <div id="toast"></div>
 
@@ -166,6 +178,8 @@ const CATS = {
     {e:"🧽",l:"Moppe",p:35},{e:"🚽",l:"Toilette/Évier",p:25},
     {e:"🛁",l:"Bain",p:60},{e:"🗑️",l:"Poubelles/Récup.",p:20},
     {e:"🧊",l:"Frigo",p:60},
+    {e:"🛏️",l:"Faire le lit",p:5},{e:"👕",l:"Plier le linge",p:15},
+    {e:"🪶",l:"Époussetage",p:20},{e:"📦",l:"Rangements",p:20},
   ]},
   sport:{label:"💪 Sport", acts:[
     {e:"🚶",l:"Marche",p:10},{e:"🚴",l:"Vélo",p:30},
@@ -180,12 +194,14 @@ const CATS = {
 
 /* ========== ÉTAT (préférences locales) ========== */
 let state = JSON.parse(localStorage.getItem("nd_state") || "null") || {
-  names:{1:"William",2:"Paola"}, who:1, tab:"menage", showTable:false
+  names:{1:"William",2:"Paola"}, who:1, tab:"menage", showTable:false, boardPeriod:"week", showWeeks:false
 };
 if(state.names[2]==="Ma copine") state.names[2]="Paola";
 if(!(state.tab in CATS)) state.tab="menage";
 if(state.showTable===undefined) state.showTable=false;
-function save(){ localStorage.setItem("nd_state", JSON.stringify({names:state.names,who:state.who,tab:state.tab,showTable:state.showTable})); }
+if(state.boardPeriod===undefined) state.boardPeriod="week";
+if(state.showWeeks===undefined) state.showWeeks=false;
+function save(){ localStorage.setItem("nd_state", JSON.stringify({names:state.names,who:state.who,tab:state.tab,showTable:state.showTable,boardPeriod:state.boardPeriod,showWeeks:state.showWeeks})); }
 
 // Le journal vient de Supabase ; cache local pour l'affichage hors-ligne
 let log = JSON.parse(localStorage.getItem("nd_log_cache") || "[]");
@@ -209,15 +225,23 @@ function streak(p){
 }
 
 /* ========== RENDU ========== */
+function periodTotal(p){ return state.boardPeriod==='week' ? weekTotal(p) : totals(p); }
+function periodOther(p){ return state.boardPeriod==='week' ? totals(p) : weekTotal(p); }
+
 function render(){
-  const t1=totals(1),t2=totals(2);
+  document.getElementById("periodBar").innerHTML=
+    `<div class="popt ${state.boardPeriod==='week'?'sel':''}" onclick="setPeriod('week')">Cette semaine</div>
+     <div class="popt ${state.boardPeriod==='all'?'sel':''}" onclick="setPeriod('all')">All-time</div>`;
+
+  const m1=periodTotal(1),m2=periodTotal(2);
+  const otherLabel=state.boardPeriod==='week'?'All-time':'Cette semaine';
   document.getElementById("board").innerHTML=[1,2].map(p=>{
-    const tot=p==1?t1:t2, lead=(t1!=t2)&&((p==1&&t1>t2)||(p==2&&t2>t1));
+    const tot=p==1?m1:m2, lead=(m1!=m2)&&((p==1&&m1>m2)||(p==2&&m2>m1));
     const st=streak(p);
     return `<div class="player p${p} ${state.who==p?'active':''} ${lead?'lead':''}">
       <div class="pname" onclick="rename(${p})">${state.names[p]} ✏️</div>
       <div class="pts">${tot}<small> pts</small></div>
-      <div class="meta">Cette semaine: <b>${weekTotal(p)}</b><br>
+      <div class="meta">${otherLabel}: <b>${periodOther(p)}</b><br>
       <span class="streak">🔥 série ${st} jour${st>1?'s':''}</span></div>
     </div>`;
   }).join("");
@@ -253,6 +277,36 @@ function render(){
 
   document.getElementById("tblArrow").classList.toggle("open", state.showTable);
   document.getElementById("qtableWrap").innerHTML = state.showTable ? renderTable() : "";
+
+  document.getElementById("wkArrow").classList.toggle("open", state.showWeeks);
+  document.getElementById("weeksWrap").innerHTML = state.showWeeks ? renderWeeks() : "";
+}
+
+function weekLabel(w){
+  const a=new Date(w), b=new Date(w+6*86400000);
+  const opt={day:'numeric',month:'short'};
+  return a.toLocaleDateString('fr-CA',opt)+' – '+b.toLocaleDateString('fr-CA',opt);
+}
+function renderWeeks(){
+  const weeks={};
+  log.forEach(e=>{ const w=startOfWeek(e.ts); (weeks[w]=weeks[w]||{1:0,2:0})[e.p]+=e.pts; });
+  const keys=Object.keys(weeks).map(Number).sort((a,b)=>b-a);
+  if(!keys.length) return '<div class="empty">Aucune semaine encore.</div>';
+  let w1=0,w2=0;
+  const rows=keys.map(w=>{
+    const s1=weeks[w][1]||0, s2=weeks[w][2]||0;
+    let trophy='🤝';
+    if(s1>s2){w1++;trophy='🔵';} else if(s2>s1){w2++;trophy='🟠';}
+    return `<tr><td class="ta">${weekLabel(w)}</td>
+      <td class="${s1>s2?'win1':(s1?'':'c')}">${s1||'–'}</td>
+      <td class="${s2>s1?'win2':(s2?'':'c')}">${s2||'–'}</td>
+      <td>${trophy}</td></tr>`;
+  }).join("");
+  return `<table class="qtable">
+    <thead><tr><th style="text-align:left">Semaine</th><th>${state.names[1]}</th><th class="h2">${state.names[2]}</th><th>🏆</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td class="ta">Semaines gagnées</td><td>${w1}</td><td>${w2}</td><td></td></tr></tfoot>
+  </table>`;
 }
 
 function renderTable(){
@@ -306,6 +360,8 @@ async function clearAll(){
 function setWho(p){state.who=p;save();render();}
 function setTab(k){state.tab=k;save();render();}
 function toggleTable(){state.showTable=!state.showTable;save();render();}
+function toggleWeeks(){state.showWeeks=!state.showWeeks;save();render();}
+function setPeriod(k){state.boardPeriod=k;save();render();}
 function rename(p){const n=prompt("Nom du joueur (local à cet appareil) :",state.names[p]);if(n&&n.trim()){state.names[p]=n.trim();save();render();}}
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
   clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove("show"),1800);}
